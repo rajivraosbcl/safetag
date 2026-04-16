@@ -1,65 +1,74 @@
-import Image from "next/image";
-
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen bg-white">
+
+      {/* Navbar */}
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="text-xl font-semibold">
+          Safe<span className="text-emerald-600">Tag</span>
+        </div>
+        <div className="flex gap-3">
+          <a href="/login" className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
+            Log in
+          </a>
+          <a href="/signup" className="px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">
+            Get started
+          </a>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      <section className="max-w-2xl mx-auto text-center px-6 py-20">
+        <div className="inline-block bg-emerald-50 text-emerald-700 text-xs font-medium px-3 py-1 rounded-full mb-5">
+          India's privacy-first car contact system
+        </div>
+        <h1 className="text-4xl font-semibold text-gray-900 leading-tight mb-5">
+          Get contacted without revealing your number
+        </h1>
+        <p className="text-gray-500 text-lg mb-8 leading-relaxed">
+          Stick a SafeTag QR on your car. Anyone can reach you instantly — calls go through our masked line, your number stays private.
+        </p>
+        <div className="flex gap-3 justify-center">
+          <a href="/signup" className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
+            Register your car
+          </a>
+          <a href="/login" className="px-6 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
+            Sign in
+          </a>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="max-w-4xl mx-auto px-6 pb-20 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-gray-50 rounded-xl p-6">
+          <div className="w-10 h-10 bg-emerald-100 rounded-lg mb-4 flex items-center justify-center text-emerald-700 text-lg">
+            ▦
+          </div>
+          <h3 className="font-medium text-gray-900 mb-2">QR sticker on your car</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            We mail you a weatherproof sticker after signup.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="bg-gray-50 rounded-xl p-6">
+          <div className="w-10 h-10 bg-blue-100 rounded-lg mb-4 flex items-center justify-center text-blue-700 text-lg">
+            ☎
+          </div>
+          <h3 className="font-medium text-gray-900 mb-2">Masked call or message</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            Caller dials our central number. You receive it. No number shared.
+          </p>
         </div>
-      </main>
-    </div>
-  );
+        <div className="bg-gray-50 rounded-xl p-6">
+          <div className="w-10 h-10 bg-amber-100 rounded-lg mb-4 flex items-center justify-center text-amber-700 text-lg">
+            ✦
+          </div>
+          <h3 className="font-medium text-gray-900 mb-2">Annual subscription</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            One plan. Active subscription unlocks calls instantly.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  )
 }
