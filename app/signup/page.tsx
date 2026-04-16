@@ -1,8 +1,114 @@
 "use client"
 import { useState } from "react"
+import { supabase } from "../lib/supabase"
 
 export default function Signup() {
   const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const [formData, setFormData] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+    emergency_contact_name: "",
+    emergency_contact_phone: "",
+    car_number: "",
+    rc_file: null,
+  })
+
+  const handleChange = (e: any) => {
+    if (e.target.type === "file") {
+      setFormData({ ...formData, rc_file: e.target.files[0] })
+    } else {
+      setFormData({ ...formData, [e.target.name]: e.target.value })
+    }
+  }
+
+  const handleStep1 = () => {
+    if (!formData.full_name || !formData.phone || !formData.email) {
+      setError("Please fill in all fields")
+      return
+    }
+    setError("")
+    setStep(2)
+  }
+
+  const handleStep2 = () => {
+    if (!formData.car_number || !formData.emergency_contact_name || !formData.emergency_contact_phone) {
+      setError("Please fill in all fields")
+      return
+    }
+    setError("")
+    setStep(3)
+  }
+
+  const handleSignup = async () => {
+    setLoading(true)
+    setError("")
+
+    try {
+      // 1. Create auth user with email
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.phone, // using phone as temp password
+      })
+
+      if (authError) throw authError
+
+      const userId = authData.user!.id
+
+      // 2. Upload RC file
+      let rcUrl = ""
+      if (formData.rc_file) {
+        const fileExt = (formData.rc_file as any).name.split(".").pop()
+        const fileName = `${userId}/rc.${fileExt}`
+        const { error: uploadError } = await supabase.storage
+          .from("rc-documents")
+          .upload(fileName, formData.rc_file)
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from("rc-documents")
+            .getPublicUrl(fileName)
+          rcUrl = urlData.publicUrl
+        }
+      }
+
+      // 3. Save profile
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert({
+          id: userId,
+          full_name: formData.full_name,
+          phone: formData.phone,
+          email: formData.email,
+          emergency_contact_name: formData.emergency_contact_name,
+          emergency_contact_phone: formData.emergency_contact_phone,
+          subscription_active: false,
+        })
+
+      if (profileError) throw profileError
+
+      // 4. Save car
+      const { error: carError } = await supabase
+        .from("cars")
+        .insert({
+          user_id: userId,
+          car_number: formData.car_number,
+        })
+
+      if (carError) throw carError
+
+      // Success — go to payment step
+      setStep(3)
+
+    } catch (err: any) {
+  setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
@@ -12,12 +118,9 @@ export default function Signup() {
         <a href="/" className="text-xl font-semibold">
           Safe<span className="text-emerald-600">Tag</span>
         </a>
-        <a href="/" className="text-sm text-gray-500 hover:text-gray-700">
-          ← Back
-        </a>
+        <a href="/" className="text-sm text-gray-500 hover:text-gray-700">← Back</a>
       </nav>
 
-      {/* Form */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="bg-white border border-gray-100 rounded-2xl p-8 w-full max-w-sm">
 
@@ -30,121 +133,107 @@ export default function Signup() {
               <div
                 key={s}
                 className={`h-1.5 rounded-full transition-all ${
-                  s === step
-                    ? "w-8 bg-emerald-600"
-                    : s < step
-                    ? "w-4 bg-emerald-300"
-                    : "w-4 bg-gray-200"
+                  s === step ? "w-8 bg-emerald-600"
+                  : s < step ? "w-4 bg-emerald-300"
+                  : "w-4 bg-gray-200"
                 }`}
               />
             ))}
             <span className="text-xs text-gray-400 ml-2">Step {step} of 3</span>
           </div>
 
-          {/* Step 1 — Personal details */}
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-50 text-red-600 text-xs px-3 py-2 rounded-lg mb-4">
+              {error}
+            </div>
+          )}
+
+          {/* Step 1 */}
           {step === 1 && (
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Full name</label>
-                <input
-                  type="text"
-                  placeholder="Arjun Sharma"
+                <input name="full_name" type="text" placeholder="Arjun Sharma"
+                  value={formData.full_name} onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Mobile number</label>
-                <input
-                  type="tel"
-                  placeholder="+91 98765 43210"
+                <input name="phone" type="tel" placeholder="+91 98765 43210"
+                  value={formData.phone} onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Email address</label>
-                <input
-                  type="email"
-                  placeholder="you@example.com"
+                <input name="email" type="email" placeholder="you@example.com"
+                  value={formData.email} onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
-              <button
-                onClick={() => setStep(2)}
-                className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 mt-2"
-              >
+              <button onClick={handleStep1}
+                className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 mt-2">
                 Continue →
               </button>
             </div>
           )}
 
-          {/* Step 2 — Car details */}
+          {/* Step 2 */}
           {step === 2 && (
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Car registration number</label>
-                <input
-                  type="text"
-                  placeholder="TS 09 EF 1234"
+                <input name="car_number" type="text" placeholder="TS 09 EF 1234"
+                  value={formData.car_number} onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">RC copy (image or PDF)</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
+                <input name="rc_file" type="file" accept="image/*,.pdf"
+                  onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Emergency contact name</label>
-                <input
-                  type="text"
-                  placeholder="Priya Sharma"
+                <input name="emergency_contact_name" type="text" placeholder="Priya Sharma"
+                  value={formData.emergency_contact_name} onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Emergency contact number</label>
-                <input
-                  type="tel"
-                  placeholder="+91 98765 43211"
+                <input name="emergency_contact_phone" type="tel" placeholder="+91 98765 43211"
+                  value={formData.emergency_contact_phone} onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => setStep(1)}
-                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
-                >
+                <button onClick={() => setStep(1)}
+                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
                   ← Back
                 </button>
-                <button
-                  onClick={() => setStep(3)}
-                  className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700"
-                >
+                <button onClick={handleStep2}
+                  className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
                   Continue →
                 </button>
               </div>
             </div>
           )}
 
-          {/* Step 3 — Payment */}
+          {/* Step 3 - Payment */}
           {step === 3 && (
             <div className="flex flex-col gap-4">
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 mb-1">Annual subscription</p>
                 <p className="text-3xl font-semibold text-gray-900">
-                  ₹999
-                  <span className="text-sm font-normal text-gray-400"> / year</span>
+                  ₹999 <span className="text-sm font-normal text-gray-400">/ year</span>
                 </p>
                 <ul className="mt-3 flex flex-col gap-1">
-                  {[
-                    "Masked call routing",
-                    "SMS messaging",
-                    "QR sticker by post",
-                    "1 car covered",
-                  ].map((item) => (
+                  {["Masked call routing", "SMS messaging", "QR sticker by post", "1 car covered"].map((item) => (
                     <li key={item} className="text-xs text-gray-500 flex items-center gap-2">
                       <span className="text-emerald-500">✓</span> {item}
                     </li>
@@ -152,14 +241,15 @@ export default function Signup() {
                 </ul>
               </div>
               <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => setStep(2)}
-                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
-                >
+                <button onClick={() => setStep(2)}
+                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
                   ← Back
                 </button>
-                <button className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700">
-                  Pay ₹999
+                <button
+                  onClick={handleSignup}
+                  disabled={loading}
+                  className="flex-1 bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                  {loading ? "Saving..." : "Pay ₹999"}
                 </button>
               </div>
               <p className="text-xs text-gray-400 text-center">
@@ -170,14 +260,11 @@ export default function Signup() {
 
           <p className="text-center text-sm text-gray-400 mt-6">
             Already have an account?{" "}
-            <a href="/login" className="text-emerald-600 hover:underline">
-              Sign in
-            </a>
+            <a href="/login" className="text-emerald-600 hover:underline">Sign in</a>
           </p>
 
         </div>
       </div>
-
     </main>
   )
 }
