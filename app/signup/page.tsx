@@ -2,6 +2,17 @@
 import { useState } from "react"
 import { supabase } from "../lib/supabase"
 
+
+const loadRazorpay = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement("script")
+    script.src = "https://checkout.razorpay.com/v1/checkout.js"
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
+
 export default function Signup() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -48,10 +59,10 @@ export default function Signup() {
     setError("")
 
     try {
-      // 1. Create auth user with email
+      // 1. Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.phone, // using phone as temp password
+        password: formData.phone,
       })
 
       if (authError) throw authError
@@ -100,11 +111,49 @@ export default function Signup() {
 
       if (carError) throw carError
 
-      // Success — go to payment step
-      setStep(3)
+      // 5. Create Razorpay order
+      const orderRes = await fetch("/api/create-order", { method: "POST" })
+      const order = await orderRes.json()
+
+      if (order.error) throw new Error(order.error)
+
+      // 6. Open Razorpay checkout
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: "SafeTag",
+        description: "Annual Subscription",
+        order_id: order.id,
+        handler: async function (response: any) {
+          // Payment successful — update subscription
+          await supabase
+            .from("profiles")
+            .update({ subscription_active: true })
+            .eq("id", userId)
+
+          alert("Payment successful! Welcome to SafeTag!")
+          window.location.href = "/"
+        },
+        prefill: {
+          name: formData.full_name,
+          email: formData.email,
+          contact: formData.phone,
+        },
+        theme: {
+          color: "#059669",
+        },
+      }
+
+      const loaded = await loadRazorpay()
+        if (!loaded) {
+            throw new Error("Razorpay failed to load. Check your internet connection.")
+        }
+      const rzp = new (window as any).Razorpay(options)
+      rzp.open()
 
     } catch (err: any) {
-  setError(err.message)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
