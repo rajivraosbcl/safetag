@@ -86,36 +86,47 @@ export default function Signup() {
         }
       }
 
-      // 3. Save profile
-      const { error: profileError } = await supabase
-        .from("profiles")
+      // 3. Save user profile with car info
+      const { error: userError } = await supabase
+        .from("users")
         .insert({
           id: userId,
           full_name: formData.full_name,
-          phone: formData.phone,
+          phone_number: formData.phone,
           email: formData.email,
+          car_number: formData.car_number.toUpperCase(),
+          rc_file_path: rcUrl,
           emergency_contact_name: formData.emergency_contact_name,
           emergency_contact_phone: formData.emergency_contact_phone,
-          subscription_active: false,
+          user_type: "driver",
+          subscription_status: "pending",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
 
-      if (profileError) throw profileError
+      if (userError) throw userError
 
-      // 4. Save car
-      const { error: carError } = await supabase
-        .from("cars")
-        .insert({
-          user_id: userId,
-          car_number: formData.car_number,
-        })
-
-      if (carError) throw carError
+      // 4. Store user ID and plan for payment verification
+      localStorage.setItem("userId", userId)
+      localStorage.setItem("selectedPlan", "annual")
 
       // 5. Create Razorpay order
-      const orderRes = await fetch("/api/create-order", { method: "POST" })
+      const orderRes = await fetch("/api/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "annual" }),
+      })
+
+      if (!orderRes.ok) {
+        const errorData = await orderRes.json()
+        throw new Error(errorData.error || "Failed to create payment order")
+      }
+
       const order = await orderRes.json()
 
-      if (order.error) throw new Error(order.error)
+      if (!order.id) {
+        throw new Error("Invalid order response from payment service")
+      }
 
       // 6. Open Razorpay checkout
       const options = {
@@ -126,14 +137,34 @@ export default function Signup() {
         description: "Annual Subscription",
         order_id: order.id,
         handler: async function (response: any) {
-          // Payment successful — update subscription
-          await supabase
-            .from("profiles")
-            .update({ subscription_active: true })
-            .eq("id", userId)
+          // Verify payment on backend
+          try {
+            const verifyRes = await fetch("/api/payment/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId: order.id,
+                paymentId: response.razorpay_payment_id,
+                signature: response.razorpay_signature,
+                userId: userId,
+                plan: "annual",
+              }),
+            })
 
-          alert("Payment successful! Welcome to SafeTag!")
-          window.location.href = "/"
+            const verifyData = await verifyRes.json()
+
+            if (!verifyRes.ok) {
+              throw new Error(verifyData.error || "Payment verification failed")
+            }
+
+            localStorage.removeItem("userId")
+            localStorage.removeItem("selectedPlan")
+            alert("Payment successful! Welcome to SafeTag!")
+            window.location.href = "/dashboard"
+          } catch (err: any) {
+            alert("Payment received but verification failed. Please contact support.")
+            console.error("Verification error:", err)
+          }
         },
         prefill: {
           name: formData.full_name,
@@ -143,13 +174,28 @@ export default function Signup() {
         theme: {
           color: "#059669",
         },
+        modal: {
+          ondismiss: function () {
+            setLoading(false)
+            setError(\"Payment cancelled. Please try again.\")
+          },
+        },
       }
 
       const loaded = await loadRazorpay()
-        if (!loaded) {
-            throw new Error("Razorpay failed to load. Check your internet connection.")
-        }
+      if (!loaded) {
+        throw new Error(\"Razorpay failed to load. Check your internet connection.\")
+      }
+
+      if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+        throw new Error(\"Payment service not configured. Please contact support.\")
+      }
+
       const rzp = new (window as any).Razorpay(options)
+      rzp.on(\"payment.failed\", function (response: any) {
+        setLoading(false)
+        setError(`Payment failed: ${response.error.description}`)
+      })
       rzp.open()
 
     } catch (err: any) {

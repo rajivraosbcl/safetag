@@ -1,12 +1,23 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const keyId = "rzp_test_SeF09poqTsSqrV"
-    const keySecret = "jV2MZ6g6bqwv7Cxo20BW197x"
+    const body = await request.json()
+    const { plan = "annual" } = body
 
-    console.log("Key ID:", keyId)
-    console.log("Key Secret exists:", !!keySecret)
+    const keyId = process.env.RAZORPAY_KEY_ID
+    const keySecret = process.env.RAZORPAY_KEY_SECRET
+
+    if (!keyId || !keySecret) {
+      console.error("Missing Razorpay credentials in environment")
+      return NextResponse.json(
+        { error: "Payment service not configured" },
+        { status: 500 }
+      )
+    }
+
+    // Determine amount based on plan
+    const amount = plan === "annual" ? 99900 : 10000
 
     const response = await fetch("https://api.razorpay.com/v1/orders", {
       method: "POST",
@@ -15,18 +26,30 @@ export async function POST() {
         "Authorization": "Basic " + Buffer.from(keyId + ":" + keySecret).toString("base64"),
       },
       body: JSON.stringify({
-        amount: 99900,
+        amount: amount,
         currency: "INR",
         receipt: "safetag_" + Date.now(),
       }),
     })
 
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("Razorpay API error:", errorData)
+      return NextResponse.json(
+        { error: errorData.description || "Failed to create order" },
+        { status: response.status }
+      )
+    }
+
     const order = await response.json()
-    console.log("Razorpay response:", JSON.stringify(order))
+    console.log("Razorpay order created:", order.id)
     return NextResponse.json(order)
 
   } catch (err: any) {
-    console.log("Error:", err.message)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error("Order creation error:", err)
+    return NextResponse.json(
+      { error: err.message || "Failed to create order" },
+      { status: 500 }
+    )
   }
 }

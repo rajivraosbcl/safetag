@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import crypto from "crypto"
 import { supabase } from "@/app/lib/supabase"
-
-const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET || ""
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,16 +15,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify signature
-    const crypto = require("crypto")
+    const keySecret = process.env.RAZORPAY_KEY_SECRET
+    if (!keySecret) {
+      console.error("Missing RAZORPAY_KEY_SECRET environment variable")
+      return NextResponse.json(
+        { error: "Payment service not configured" },
+        { status: 500 }
+      )
+    }
+
     const message = `${orderId}|${paymentId}`
     const generatedSignature = crypto
-      .createHmac("sha256", razorpayKeySecret)
+      .createHmac("sha256", keySecret)
       .update(message)
       .digest("hex")
 
     if (generatedSignature !== signature) {
+      console.error("Signature verification failed", {
+        expected: generatedSignature,
+        received: signature,
+      })
       return NextResponse.json(
-        { error: "Invalid signature" },
+        { error: "Invalid payment signature. Payment verification failed." },
         { status: 403 }
       )
     }
@@ -34,27 +45,36 @@ export async function POST(request: NextRequest) {
     const expiryDate = new Date()
     if (plan === "annual") {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1)
-    } else if (plan === "monthly") {
-      expiryDate.setMonth(expiryDate.getMonth() + 1)
-    }
-
-    // Update user subscription in database
-    const { data, error } = await supabase
-      .from("users")
-      .update({
-        subscription_status: "active",
-        subscription_expiry: expiryDate.toISOString(),
-        subscription_plan: plan,
-        subscription_start_date: new Date().toISOString(),
+    }   updated_at: new Date().toISOString(),
       })
       .eq("id", userId)
       .select()
 
     if (error) {
+      console.error("Database update error:", error)
       return NextResponse.json(
-        { error: "Failed to update subscription" },
+        { error: "Failed to activate subscription" },
         { status: 500 }
       )
+    }
+
+    // Create payment record
+    const { error: paymentError } = await supabase
+      .from("payments")
+      .insert({
+        user_id: userId,
+        razorpay_order_id: orderId,
+        razorpay_payment_id: paymentId,
+        amount: plan === "annual" ? 99900 : 10000,
+        currency: "INR",
+        plan: plan,
+        status: "success",
+        created_at: new Date().toISOString(),
+      })
+
+    if (paymentError) {
+      console.error("Payment record error:", paymentError)
+      // Don't fail here, subscription is already updated
     }
 
     // Create payment record
@@ -68,7 +88,7 @@ export async function POST(request: NextRequest) {
       status: "success",
       created_at: new Date().toISOString(),
     })
-
+|| "Payment verification failed" 
     return NextResponse.json({
       success: true,
       message: "Payment verified and subscription activated",
