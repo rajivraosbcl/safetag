@@ -1,8 +1,8 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 
-export default function PaymentConfirmation() {
+function PaymentConfirmationContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
@@ -95,5 +95,20 @@ export default function PaymentConfirmation() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function PaymentConfirmation() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </main>
+    }>
+      <PaymentConfirmationContent />
+    </Suspense>
   )
 }
