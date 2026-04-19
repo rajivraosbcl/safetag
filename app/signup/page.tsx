@@ -177,22 +177,22 @@ export default function Signup() {
         modal: {
           ondismiss: function () {
             setLoading(false)
-            setError(\"Payment cancelled. Please try again.\")
+            setError('Payment cancelled. Please try again.')
           },
         },
       }
 
       const loaded = await loadRazorpay()
       if (!loaded) {
-        throw new Error(\"Razorpay failed to load. Check your internet connection.\")
+        throw new Error('Razorpay failed to load. Check your internet connection.')
       }
 
       if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
-        throw new Error(\"Payment service not configured. Please contact support.\")
+        throw new Error('Payment service not configured. Please contact support.')
       }
 
       const rzp = new (window as any).Razorpay(options)
-      rzp.on(\"payment.failed\", function (response: any) {
+      rzp.on('payment.failed', function (response: any) {
         setLoading(false)
         setError(`Payment failed: ${response.error.description}`)
       })

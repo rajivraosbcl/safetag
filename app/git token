@@ -1,3 +1,0 @@
-# Remove this file and add tokens to .env.local instead
-# Never commit secrets to version control
-razor pay test api secret: jV2MZ6g6bqwv7Cxo20BW197x
