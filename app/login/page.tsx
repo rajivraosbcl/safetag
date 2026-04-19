@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase } from "@/app/lib/supabase"
 import { useRouter } from "next/navigation"
 
@@ -15,6 +15,18 @@ export default function Login() {
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
   const [resetEmail, setResetEmail] = useState("")
+
+  // Handle magic link redirect from Supabase
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // User is already authenticated (from magic link or stored session)
+        router.push("/dashboard")
+      }
+    }
+    checkAuth()
+  }, [router])
 
   const handleSendOTP = async () => {
     setError("")
