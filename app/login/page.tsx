@@ -30,10 +30,14 @@ export default function Login() {
 
       // Format phone number
       const formattedPhone = phone.startsWith("+") ? phone : `+91${phone.replace(/\D/g, "")}`
+      const appUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
 
       // Sign in with OTP
       const { error: signInError } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
+        options: {
+          redirectTo: `${appUrl}/dashboard`,
+        },
       })
 
       if (signInError) {
@@ -131,8 +135,13 @@ export default function Login() {
         return
       }
 
+      const appUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+      
       const { error: signInError } = await supabase.auth.signInWithOtp({
         email: email,
+        options: {
+          redirectTo: `${appUrl}/dashboard`,
+        },
       })
 
       if (signInError) {
