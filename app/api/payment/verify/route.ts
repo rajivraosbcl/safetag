@@ -45,7 +45,19 @@ export async function POST(request: NextRequest) {
     const expiryDate = new Date()
     if (plan === "annual") {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1)
-    }   updated_at: new Date().toISOString(),
+    } else if (plan === "monthly") {
+      expiryDate.setMonth(expiryDate.getMonth() + 1)
+    }
+
+    // Update user subscription in database
+    const { data, error } = await supabase
+      .from("users")
+      .update({
+        subscription_status: "active",
+        subscription_expiry: expiryDate.toISOString(),
+        subscription_plan: plan,
+        subscription_start_date: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq("id", userId)
       .select()
