@@ -73,6 +73,7 @@ export default function Signup() {
       if (authError) throw authError
 
       const userId = authData.user!.id
+      console.log("Auth user created successfully, ID:", userId)
 
       // 2. Upload RC file
       let rcUrl = ""

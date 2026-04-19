@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
       userId,
     } = body
 
+    console.log("Signup API received:", { userId, email, full_name })
+
     if (!userId) {
       return NextResponse.json(
         { error: "User ID required" },
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert user profile with service role (bypasses RLS)
-    const { error: userError } = await supabaseAdmin
+    const { error: userError, data } = await supabaseAdmin
       .from("users")
       .insert({
         id: userId,
@@ -46,12 +48,14 @@ export async function POST(req: NextRequest) {
       })
 
     if (userError) {
+      console.error("Insert error:", userError)
       return NextResponse.json(
         { error: userError.message },
         { status: 400 }
       )
     }
 
+    console.log("User inserted successfully:", data)
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error("Signup API error:", err)
