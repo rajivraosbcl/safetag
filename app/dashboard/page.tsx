@@ -27,6 +27,8 @@ export default function Dashboard() {
 
         if (error || !userData) {
           console.error("Error fetching user:", error)
+          console.error("Auth user ID:", authUser.id)
+          console.error("User data:", userData)
           setLoading(false)
           return
         }
