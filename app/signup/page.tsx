@@ -91,11 +91,12 @@ export default function Signup() {
         }
       }
 
-      // 3. Save user profile with car info
-      const { error: userError } = await supabase
-        .from("users")
-        .insert({
-          id: userId,
+      // 3. Save user profile via API (uses service role to bypass RLS)
+      const signupRes = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
           full_name: formData.full_name,
           phone_number: formData.phone,
           email: formData.email,
@@ -103,13 +104,11 @@ export default function Signup() {
           rc_file_path: rcUrl,
           emergency_contact_name: formData.emergency_contact_name,
           emergency_contact_phone: formData.emergency_contact_phone,
-          user_type: "driver",
-          subscription_status: "pending",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        }),
+      })
 
-      if (userError) throw userError
+      const signupData = await signupRes.json()
+      if (!signupRes.ok) throw new Error(signupData.error || "Failed to save profile")
 
       // 4. Store user ID and plan for payment verification
       localStorage.setItem("userId", userId)
