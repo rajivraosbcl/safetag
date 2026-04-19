@@ -26,9 +26,11 @@ export default function Dashboard() {
           .single()
 
         if (error || !userData) {
-          console.error("Error fetching user:", error)
+          console.error("Error fetching user:", JSON.stringify(error, null, 2))
           console.error("Auth user ID:", authUser.id)
           console.error("User data:", userData)
+          console.error("Error message:", error?.message)
+          console.error("Error code:", error?.code)
           setLoading(false)
           return
         }
