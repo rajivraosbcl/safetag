@@ -1,6 +1,3 @@
-git token: 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
-superbase: url: 
-anon public key: 
-
-razor pay test api key: rzp_test_SeF09poqTsSqrV
+# Remove this file and add tokens to .env.local instead
+# Never commit secrets to version control
 razor pay test api secret: jV2MZ6g6bqwv7Cxo20BW197x
