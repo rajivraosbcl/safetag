@@ -11,11 +11,8 @@ export default function Dashboard() {
   const [callLogs, setCallLogs] = useState<any[]>([])
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const fetchUserData = async (authUser: any) => {
       try {
-        // Get current user session
-        const { data: { user: authUser } } = await supabase.auth.getUser()
-
         if (!authUser) {
           window.location.href = "/login"
           return
@@ -30,6 +27,7 @@ export default function Dashboard() {
 
         if (error || !userData) {
           console.error("Error fetching user:", error)
+          setLoading(false)
           return
         }
 
@@ -38,7 +36,7 @@ export default function Dashboard() {
         // Fetch messages sent to this driver
         const { data: messagesData } = await supabase
           .from("messages")
-          .select("*, sender:sender_id(full_name)")
+          .select("*")
           .eq("driver_id", authUser.id)
           .order("created_at", { ascending: false })
           .limit(20)
@@ -61,7 +59,21 @@ export default function Dashboard() {
       }
     }
 
-    fetchUserData()
+    // Use onAuthStateChange to detect session changes (including magic link)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          await fetchUserData(session.user)
+        } else {
+          window.location.href = "/login"
+        }
+      }
+    )
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription?.unsubscribe()
+    }
   }, [])
 
   if (loading) {
