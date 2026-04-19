@@ -1,4 +1,22 @@
+"use client"
+import { useEffect } from "react"
+import { supabase } from "@/app/lib/supabase"
+import { useRouter } from "next/navigation"
+
 export default function Home() {
+  const router = useRouter()
+
+  // Check if user is authenticated and redirect to dashboard
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        router.push("/dashboard")
+      }
+    }
+    checkAuth()
+  }, [router])
+
   return (
     <main className="min-h-screen bg-white">
 
@@ -71,4 +89,5 @@ export default function Home() {
 
     </main>
   )
+}
 }
