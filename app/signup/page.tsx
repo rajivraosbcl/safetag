@@ -22,6 +22,7 @@ export default function Signup() {
     full_name: "",
     phone: "",
     email: "",
+    password: "",
     emergency_contact_name: "",
     emergency_contact_phone: "",
     car_number: "",
@@ -37,8 +38,12 @@ export default function Signup() {
   }
 
   const handleStep1 = () => {
-    if (!formData.full_name || !formData.phone || !formData.email) {
+    if (!formData.full_name || !formData.phone || !formData.email || !formData.password) {
       setError("Please fill in all fields")
+      return
+    }
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters")
       return
     }
     setError("")
@@ -62,7 +67,7 @@ export default function Signup() {
       // 1. Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.phone,
+        password: formData.password,
       })
 
       if (authError) throw authError
@@ -267,8 +272,14 @@ export default function Signup() {
                   value={formData.email} onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                 />
-              </div>
-              <button onClick={handleStep1}
+              </div>              <div>
+                <label className="block text-xs text-gray-500 mb-1">Password</label>
+                <input name="password" type="password" placeholder="••••••••"
+                  value={formData.password} onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">Minimum 6 characters</p>
+              </div>              <button onClick={handleStep1}
                 className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 mt-2">
                 Continue →
               </button>

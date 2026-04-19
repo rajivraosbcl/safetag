@@ -5,15 +5,16 @@ import { useRouter } from "next/navigation"
 
 export default function Login() {
   const router = useRouter()
-  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone")
+  const [loginMethod, setLoginMethod] = useState<"phone" | "email" | "password">("email")
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [otp, setOtp] = useState("")
-  const [step, setStep] = useState<"input" | "otp">("input")
+  const [step, setStep] = useState<"input" | "otp" | "reset">("input")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
+  const [resetEmail, setResetEmail] = useState("")
 
   const handleSendOTP = async () => {
     setError("")
@@ -118,6 +119,103 @@ export default function Login() {
     }
   }
 
+  const handleSendEmailOTP = async () => {
+    setError("")
+    setSuccessMessage("")
+    setLoading(true)
+
+    try {
+      if (!email) {
+        setError("Please enter an email address")
+        setLoading(false)
+        return
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithOtp({
+        email: email,
+      })
+
+      if (signInError) {
+        setError(signInError.message || "Failed to send OTP")
+        return
+      }
+
+      setSuccessMessage("OTP sent to your email")
+      setStep("otp")
+    } catch (err: any) {
+      setError(err.message || "An error occurred")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyEmailOTP = async () => {
+    setError("")
+    setSuccessMessage("")
+    setLoading(true)
+
+    try {
+      if (!otp || otp.length < 6) {
+        setError("Please enter a valid OTP")
+        setLoading(false)
+        return
+      }
+
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: email,
+        token: otp,
+        type: "email",
+      })
+
+      if (verifyError) {
+        setError(verifyError.message || "Invalid OTP")
+        return
+      }
+
+      setSuccessMessage("Login successful! Redirecting...")
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 1000)
+    } catch (err: any) {
+      setError(err.message || "Verification failed")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSendResetLink = async () => {
+    setError("")
+    setSuccessMessage("")
+    setLoading(true)
+
+    try {
+      if (!resetEmail) {
+        setError("Please enter your email")
+        setLoading(false)
+        return
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+
+      if (error) {
+        setError(error.message || "Failed to send reset link")
+        return
+      }
+
+      setSuccessMessage("Password reset link sent to your email. Check your inbox.")
+      setTimeout(() => {
+        setStep("input")
+        setResetEmail("")
+      }, 3000)
+    } catch (err: any) {
+      setError(err.message || "An error occurred")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
 
@@ -153,7 +251,7 @@ export default function Login() {
                   : "text-gray-400 border-transparent hover:text-gray-600"
               }`}
             >
-              Phone
+              Phone OTP
             </button>
             <button 
               onClick={() => {
@@ -167,7 +265,21 @@ export default function Login() {
                   : "text-gray-400 border-transparent hover:text-gray-600"
               }`}
             >
-              Email
+              Email OTP
+            </button>
+            <button 
+              onClick={() => {
+                setLoginMethod("password")
+                setStep("input")
+                setError("")
+              }}
+              className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${
+                loginMethod === "password"
+                  ? "text-emerald-600 border-emerald-600"
+                  : "text-gray-400 border-transparent hover:text-gray-600"
+              }`}
+            >
+              Password
             </button>
           </div>
 
@@ -245,38 +357,141 @@ export default function Login() {
             </div>
           )}
 
-          {/* Email login */}
+          {/* Email OTP login */}
           {loginMethod === "email" && (
             <div className="flex flex-col gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Email address</label>
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500 disabled:bg-gray-50"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500 disabled:bg-gray-50"
-                />
-              </div>
-              <button 
-                onClick={handleEmailLogin}
-                disabled={loading}
-                className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-gray-400"
-              >
-                {loading ? "Logging in..." : "Sign In"}
-              </button>
+              {step === "input" && (
+                <>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Email address</label>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500 disabled:bg-gray-50"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleSendEmailOTP}
+                    disabled={loading}
+                    className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-gray-400"
+                  >
+                    {loading ? "Sending..." : "Send OTP"}
+                  </button>
+                </>
+              )}
+
+              {step === "otp" && (
+                <>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Enter OTP</label>
+                    <input
+                      type="text"
+                      placeholder="000000"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      disabled={loading}
+                      maxLength={6}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500 disabled:bg-gray-50 text-center font-mono"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">OTP sent to {email}</p>
+                  </div>
+                  <button 
+                    onClick={handleVerifyEmailOTP}
+                    disabled={loading}
+                    className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-gray-400"
+                  >
+                    {loading ? "Verifying..." : "Verify OTP"}
+                  </button>
+                  <button 
+                    onClick={() => setStep("input")}
+                    disabled={loading}
+                    className="w-full bg-gray-100 text-gray-600 py-2 rounded-lg text-sm font-medium hover:bg-gray-200"
+                  >
+                    Change Email
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Password login */}
+          {loginMethod === "password" && (
+            <div className="flex flex-col gap-4">
+              {step === "input" && (
+                <>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Email address</label>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500 disabled:bg-gray-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Password</label>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500 disabled:bg-gray-50"
+                    />
+                  </div>
+                  <button 
+                    onClick={handleEmailLogin}
+                    disabled={loading}
+                    className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-gray-400"
+                  >
+                    {loading ? "Logging in..." : "Sign In"}
+                  </button>
+                  <button
+                    onClick={() => setStep("reset")}
+                    className="text-xs text-emerald-600 hover:underline text-center"
+                  >
+                    Forgot password?
+                  </button>
+                </>
+              )}
+
+              {step === "reset" && (
+                <>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Enter your email</label>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-emerald-500 disabled:bg-gray-50"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSendResetLink}
+                    disabled={loading}
+                    className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-gray-400"
+                  >
+                    {loading ? "Sending..." : "Send Reset Link"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStep("input")
+                      setResetEmail("")
+                    }}
+                    disabled={loading}
+                    className="w-full bg-gray-100 text-gray-600 py-2 rounded-lg text-sm font-medium hover:bg-gray-200"
+                  >
+                    Back to Login
+                  </button>
+                </>
+              )}
             </div>
           )}
 
