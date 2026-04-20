@@ -64,52 +64,61 @@ export default function Signup() {
     setError("")
 
     try {
-      // 1. Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-      })
-
-      if (authError) throw authError
-
-      const userId = authData.user!.id
-      console.log("Auth user created successfully, ID:", userId)
-
-      // 2. Upload RC file
-      let rcUrl = ""
-      if (formData.rc_file) {
-        const fileExt = (formData.rc_file as any).name.split(".").pop()
-        const fileName = `${userId}/rc.${fileExt}`
-        const { error: uploadError } = await supabase.storage
-          .from("rc-documents")
-          .upload(fileName, formData.rc_file)
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from("rc-documents")
-            .getPublicUrl(fileName)
-          rcUrl = urlData.publicUrl
-        }
-      }
-
-      // 3. Save user profile via API (uses service role to bypass RLS)
+      // 1. Create the auth user + profile via server API (uses service role).
+      //    Note: we deliberately do NOT call supabase.auth.signUp from the
+      //    client, because when "Confirm email" is ON, signUp returns a fake
+      //    user id for already-registered emails, which caused the
+      //    users_id_fkey foreign-key violation. The server route uses
+      //    admin.createUser which always returns the real id.
       const signupRes = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
+          email: formData.email,
+          password: formData.password,
           full_name: formData.full_name,
           phone_number: formData.phone,
-          email: formData.email,
           car_number: formData.car_number.toUpperCase(),
-          rc_file_path: rcUrl,
           emergency_contact_name: formData.emergency_contact_name,
           emergency_contact_phone: formData.emergency_contact_phone,
         }),
       })
 
       const signupData = await signupRes.json()
-      if (!signupRes.ok) throw new Error(signupData.error || "Failed to save profile")
+      if (!signupRes.ok) throw new Error(signupData.error || "Failed to create account")
+
+      const userId: string = signupData.userId
+      if (!userId) throw new Error("Signup did not return a user id")
+
+      // 2. Sign the new user in on the client so the storage upload below
+      //    (and anything that follows) runs with their JWT.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.password,
+      })
+      if (signInError) throw signInError
+
+      // 3. Upload RC file (optional).
+      if (formData.rc_file) {
+        const fileExt = (formData.rc_file as any).name.split(".").pop()
+        const fileName = `${userId}/rc.${fileExt}`
+        const { error: uploadError } = await supabase.storage
+          .from("rc-documents")
+          .upload(fileName, formData.rc_file, { upsert: true })
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from("rc-documents")
+            .getPublicUrl(fileName)
+          // Save the RC URL back onto the user row.
+          await supabase
+            .from("users")
+            .update({ rc_file_path: urlData.publicUrl })
+            .eq("id", userId)
+        } else {
+          console.warn("RC upload failed (continuing):", uploadError.message)
+        }
+      }
 
       // 4. Store user ID and plan for payment verification
       localStorage.setItem("userId", userId)
