@@ -111,9 +111,15 @@ export default function Dashboard() {
     )
   }
 
+  // Read whichever expiry column is populated. The newer finalize-signup +
+  // payment/verify routes write to subscription_expires_at; legacy rows may
+  // still have data only in subscription_expiry.
+  const subscriptionExpiry =
+    user.subscription_expires_at || user.subscription_expiry
   const isSubscriptionActive =
     user.subscription_status === "active" &&
-    new Date(user.subscription_expiry) > new Date()
+    !!subscriptionExpiry &&
+    new Date(subscriptionExpiry) > new Date()
 
   const qrUrl = `${process.env.NEXT_PUBLIC_APP_URL}/qr?car=${user.car_number}`
 
@@ -142,7 +148,7 @@ export default function Dashboard() {
         {isSubscriptionActive ? (
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-6">
             <p className="text-emerald-800 font-semibold">
-              ✓ Your subscription is active until {new Date(user.subscription_expiry).toLocaleDateString()}
+              ✓ Your subscription is active until {new Date(subscriptionExpiry).toLocaleDateString()}
             </p>
           </div>
         ) : (

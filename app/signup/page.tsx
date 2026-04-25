@@ -59,90 +59,73 @@ export default function Signup() {
     setStep(3)
   }
 
+  // Read a File as a base64 data URL (without the prefix).
+  const fileToBase64 = (file: File): Promise<{ data: string; mime: string; ext: string; name: string }> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onerror = () => reject(reader.error)
+      reader.onload = () => {
+        const result = reader.result as string
+        const comma = result.indexOf(",")
+        resolve({
+          data: comma >= 0 ? result.slice(comma + 1) : result,
+          mime: file.type || "application/octet-stream",
+          ext: file.name.split(".").pop() || "bin",
+          name: file.name,
+        })
+      }
+      reader.readAsDataURL(file)
+    })
+
   const handleSignup = async () => {
     setLoading(true)
     setError("")
 
     try {
-      // 1. Create the auth user + profile via server API (uses service role).
-      //    Note: we deliberately do NOT call supabase.auth.signUp from the
-      //    client, because when "Confirm email" is ON, signUp returns a fake
-      //    user id for already-registered emails, which caused the
-      //    users_id_fkey foreign-key violation. The server route uses
-      //    admin.createUser which always returns the real id.
-      const signupRes = await fetch("/api/auth/signup", {
+      // 1. Pre-payment validation only. This call does NOT create an auth
+      //    user or a profile row. It just verifies that the email is free
+      //    and the password is long enough, so we don't send the user to
+      //    Razorpay only to fail afterwards. Account creation is deferred
+      //    until /api/auth/finalize-signup runs AFTER a successful payment.
+      const validateRes = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
-          full_name: formData.full_name,
-          phone_number: formData.phone,
-          car_number: formData.car_number.toUpperCase(),
-          emergency_contact_name: formData.emergency_contact_name,
-          emergency_contact_phone: formData.emergency_contact_phone,
         }),
       })
-
-      const signupData = await signupRes.json()
-      if (!signupRes.ok) throw new Error(signupData.error || "Failed to create account")
-
-      const userId: string = signupData.userId
-      if (!userId) throw new Error("Signup did not return a user id")
-
-      // 2. Sign the new user in on the client so the storage upload below
-      //    (and anything that follows) runs with their JWT.
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      })
-      if (signInError) throw signInError
-
-      // 3. Upload RC file (optional).
-      if (formData.rc_file) {
-        const fileExt = (formData.rc_file as any).name.split(".").pop()
-        const fileName = `${userId}/rc.${fileExt}`
-        const { error: uploadError } = await supabase.storage
-          .from("rc-documents")
-          .upload(fileName, formData.rc_file, { upsert: true })
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from("rc-documents")
-            .getPublicUrl(fileName)
-          // Save the RC URL back onto the user row.
-          await supabase
-            .from("users")
-            .update({ rc_file_path: urlData.publicUrl })
-            .eq("id", userId)
-        } else {
-          console.warn("RC upload failed (continuing):", uploadError.message)
-        }
+      const validateData = await validateRes.json()
+      if (!validateRes.ok) {
+        throw new Error(validateData.error || "Validation failed")
       }
 
-      // 4. Store user ID and plan for payment verification
-      localStorage.setItem("userId", userId)
-      localStorage.setItem("selectedPlan", "annual")
+      // 2. Pre-read the RC file (optional) into base64 so we can upload it
+      //    server-side after the account is created. Doing this BEFORE
+      //    opening Razorpay means the file contents are safely in memory
+      //    even if the modal takes a while.
+      let rcPayload: { data: string; mime: string; ext: string; name: string } | null = null
+      if (formData.rc_file) {
+        rcPayload = await fileToBase64(formData.rc_file as File)
+      }
 
-      // 5. Create Razorpay order
+      // 3. Create Razorpay order.
       const orderRes = await fetch("/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: "annual" }),
       })
-
       if (!orderRes.ok) {
         const errorData = await orderRes.json()
         throw new Error(errorData.error || "Failed to create payment order")
       }
-
       const order = await orderRes.json()
-
       if (!order.id) {
         throw new Error("Invalid order response from payment service")
       }
 
-      // 6. Open Razorpay checkout
+      // 4. Open Razorpay checkout. The signup + profile row are only
+      //    created inside the `handler` below, AFTER payment succeeds.
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: order.amount,
@@ -151,33 +134,52 @@ export default function Signup() {
         description: "Annual Subscription",
         order_id: order.id,
         handler: async function (response: any) {
-          // Verify payment on backend
           try {
-            const verifyRes = await fetch("/api/payment/verify", {
+            setLoading(true)
+            // Finalize: verify payment + create auth user + create profile.
+            const finalizeRes = await fetch("/api/auth/finalize-signup", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 orderId: order.id,
                 paymentId: response.razorpay_payment_id,
                 signature: response.razorpay_signature,
-                userId: userId,
                 plan: "annual",
+                email: formData.email,
+                password: formData.password,
+                full_name: formData.full_name,
+                phone_number: formData.phone,
+                car_number: formData.car_number.toUpperCase(),
+                emergency_contact_name: formData.emergency_contact_name,
+                emergency_contact_phone: formData.emergency_contact_phone,
+                rc_file: rcPayload,
               }),
             })
-
-            const verifyData = await verifyRes.json()
-
-            if (!verifyRes.ok) {
-              throw new Error(verifyData.error || "Payment verification failed")
+            const finalizeData = await finalizeRes.json()
+            if (!finalizeRes.ok) {
+              throw new Error(finalizeData.error || "Failed to finalize signup")
             }
 
-            localStorage.removeItem("userId")
-            localStorage.removeItem("selectedPlan")
+            const userId: string = finalizeData.userId
+
+            // Sign the user in on the client so the dashboard has a session.
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+              email: formData.email,
+              password: formData.password,
+            })
+            if (signInError) throw signInError
+
+            localStorage.setItem("userId", userId)
             alert("Payment successful! Welcome to SafeTag!")
             window.location.href = "/dashboard"
           } catch (err: any) {
-            alert("Payment received but verification failed. Please contact support.")
-            console.error("Verification error:", err)
+            console.error("Finalize error:", err)
+            const reason = err?.message || "Unknown error"
+            alert(
+              `Payment received but account creation failed.\n\nReason: ${reason}\n\nPlease contact support with this order id: ${order.id}`
+            )
+            setError(`Account creation failed: ${reason}`)
+            setLoading(false)
           }
         },
         prefill: {
@@ -200,7 +202,6 @@ export default function Signup() {
       if (!loaded) {
         throw new Error('Razorpay failed to load. Check your internet connection.')
       }
-
       if (!process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
         throw new Error('Payment service not configured. Please contact support.')
       }
