@@ -43,9 +43,13 @@ export default function Login() {
       // Format phone number
       const formattedPhone = phone.startsWith("+") ? phone : `+91${phone.replace(/\D/g, "")}`
 
-      // Sign in with OTP
+      // Sign in with OTP — do NOT create a new account if this phone is unregistered.
+      // New accounts must go through /signup → payment → /api/auth/finalize-signup.
       const { error: signInError } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
+        options: {
+          shouldCreateUser: false,
+        },
       })
 
       if (signInError) {
@@ -145,10 +149,13 @@ export default function Login() {
 
       const appUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
       
+      // Do NOT create a new account if this email is unregistered.
+      // New accounts must go through /signup → payment → /api/auth/finalize-signup.
       const { error: signInError } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
           emailRedirectTo: `${appUrl}/dashboard`,
+          shouldCreateUser: false,
         },
       })
 

@@ -18,20 +18,30 @@ export default function Dashboard() {
           return
         }
 
-        // Fetch user details
+        // Fetch user details. Use maybeSingle() so a missing row returns
+        // (data: null, error: null) instead of throwing PGRST116.
         const { data: userData, error } = await supabase
           .from("users")
           .select("*")
           .eq("id", authUser.id)
-          .single()
+          .maybeSingle()
 
-        if (error || !userData) {
+        if (error) {
+          // A real query/permissions error — log and bail out.
           console.error("Error fetching user:", JSON.stringify(error, null, 2))
           console.error("Auth user ID:", authUser.id)
-          console.error("User data:", userData)
-          console.error("Error message:", error?.message)
-          console.error("Error code:", error?.code)
+          console.error("Error message:", error.message)
+          console.error("Error code:", error.code)
           setLoading(false)
+          return
+        }
+
+        if (!userData) {
+          // Authenticated but no profile row exists. This happens if the user
+          // somehow got an auth.users row without completing the paid signup
+          // flow. Send them to /signup to finish onboarding.
+          await supabase.auth.signOut()
+          window.location.href = "/signup?msg=complete_signup"
           return
         }
 
